@@ -118,12 +118,14 @@
 # Included libraries are built in the build-cli/libs subdirectory.
 #
 # Besides make upload you can also
-#   make             - no upload
-#   make clean       - remove all our dependencies
-#   make depends     - update dependencies
-#   make reset       - reset the Arduino by tickling DTR on the serial port
-#   make raw_upload  - upload without first resetting
-#   make show_boards - list all the boards defined in boards.txt
+#   make             	- no upload
+#   make clean       	- remove all our dependencies
+#   make depends     	- update dependencies
+#   make reset       	- reset the Arduino by tickling DTR on the serial port
+#   make raw_upload  	- upload without first resetting
+#   make show_boards 	- list all the boards defined in boards.txt
+#   make monitor     	- Open serial monitor
+#   make upload_monitor	- upload then open monitor
 #
 ########################################################################
 #
@@ -264,6 +266,18 @@ endif
 
 # Everything gets built in here
 OBJDIR  	  = build-cli
+
+########################################################################
+# This code determine the serial speed for serial monitor, if necessary.
+
+SPEED = $(shell grep --max-count=1 --regexp="Serial.begin" $$(ls -1 *.ino) | sed -e 's/\/\/.*$$//g' -e 's/(/\t/' -e 's/)/\t/' | awk -F '\t' '{print $$2}' )
+MON_SPEED = $(findstring $(SPEED),300 1200 2400 4800 9600 14400 19200 28800 38400 57600 115200)
+
+ifeq ($(MON_SPEED),)
+    $(warning The monitor speed wasn't properly set. Set to 9600 by default)
+    $(shell sleep 1)
+    MON_SPEED = 9600
+endif
 
 ########################################################################
 # Local sources
@@ -478,6 +492,7 @@ raw_upload:	$(TARGET_HEX)
 # stdin/out appears to work but generates a spurious error on MacOS at
 # least. Perhaps it would be better to just do it in perl ?
 reset:		
+		-pkill -f '.*$(PORT)'
 		for STTYF in 'stty -F' 'stty --file' 'stty -f' 'stty <' ; \
 		  do $$STTYF /dev/tty >/dev/null 2>/dev/null && break ; \
 		done ;\
@@ -508,6 +523,12 @@ size:		$(OBJDIR) $(TARGET_HEX)
 show_boards:	
 		$(PARSE_BOARD) --boards
 
-.PHONY:	all clean depends upload raw_upload reset size show_boards
+monitor:	
+		$(MON_CMD) $(PORT) $(MON_SPEED)
 
-include $(DEP_FILE)
+upload_monitor: upload monitor
+
+.PHONY:	all clean depends upload raw_upload reset size show_boards monitor
+
+
+-include $(DEP_FILE)
